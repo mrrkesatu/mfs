@@ -279,12 +279,8 @@
 
         <div id="debugInfo" class="debug-info"></div>
     </div>
-<script>
-if (!window.Telegram || !Telegram.WebApp) {
-    document.body.innerHTML = "<h3>❌ Open this page from Telegram</h3>";
-    throw new Error("Not Telegram WebApp");
-}
 
+<script>
 // ===== CONFIG =====
 const DEBUG_MODE = false; // Set true for debugging
 const AD_MIN_DURATION = 15; // Minimal durasi ad dalam detik
@@ -295,30 +291,15 @@ const tg = window.Telegram.WebApp;
 tg.ready();
 tg.expand();
 
-const tgUser = tg.initDataUnsafe?.user;
-const userId = tgUser?.id;
-
-if (!userId) {
-    showStatus("❌ Invalid Telegram session", "error");
-    updateProgress("❌ Telegram user not found");
-    throw new Error("No Telegram user");
-}
-
 // Set dark theme
 tg.setHeaderColor('#1a1a1a');
 tg.setBackgroundColor('#1a1a1a');
 
 // ===== GET PARAMETERS =====
 const urlParams = new URLSearchParams(window.location.search);
+const userId = urlParams.get('userId');
 const fileHash = urlParams.get('fileHash');
 const botUrl = urlParams.get('botUrl');
-
-if (!fileHash || !botUrl) {
-    showStatus("❌ Invalid link", "error");
-    updateProgress("❌ Missing parameters");
-    throw new Error("Missing params");
-}
-
 
 // ===== DOM ELEMENTS =====
 const watchBtn = document.getElementById('watchBtn');
@@ -542,48 +523,54 @@ function onAdCompleted() {
 // ===== SEND FILE =====
 async function sendFileToUser() {
     debugLog('=== SENDING FILE ===');
-
+    
     showStatus('📤 Sending file...', 'success');
     updateProgress('📤 Sending to Telegram...');
     showLoader(true);
     watchBtn.textContent = '📤 Sending...';
-
+    
     try {
-        const response = await fetch(`${botUrl}/ad-complete`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                initData: tg.initData,   // 🔐 VALIDASI TELEGRAM
-                fileHash: fileHash
-            })
+        const url = `${botUrl}/ad-complete?userId=${userId}&fileHash=${fileHash}`;
+        debugLog('API URL:', url);
+        
+        const response = await fetch(url, { 
+            method: 'GET',
+            headers: { 'Accept': 'application/json' }
         });
-
+        
+        debugLog('Response status:', response.status);
+        
         if (!response.ok) {
-            throw new Error("Server error");
+            throw new Error(`Server error: ${response.status}`);
         }
-
+        
         const data = await response.json();
-
-        if (!data.success) {
-            throw new Error(data.error || "Failed");
+        debugLog('Response data:', data);
+        
+        if (data.success) {
+            debugLog('✓✓✓ FILE SENT SUCCESSFULLY!');
+            showStatus('✅ File sent to your chat!', 'success');
+            updateProgress('✅ Check Telegram!');
+            watchBtn.textContent = '✅ Done!';
+            
+            setTimeout(() => {
+                debugLog('Closing Mini App...');
+                tg.close();
+            }, 2000);
+        } else {
+            throw new Error(data.error || 'Unknown error');
         }
-
-        showStatus('✅ File sent to your chat!', 'success');
-        updateProgress('✅ Check Telegram');
-        watchBtn.textContent = '✅ Done';
-
-        setTimeout(() => tg.close(), 2000);
-
-    } catch (err) {
-        showStatus(`❌ ${err.message}`, 'error');
-        updateProgress('❌ Try again');
+        
+    } catch (error) {
+        debugLog('✗ Send error:', error.message);
+        showStatus(`❌ ${error.message}`, 'error');
+        updateProgress('❌ Failed. Try again or contact support.');
         watchBtn.disabled = false;
         watchBtn.textContent = '🔄 Retry';
     } finally {
         showLoader(false);
     }
 }
-
 
 // ===== INITIALIZE =====
 (async function init() {
