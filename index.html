@@ -350,8 +350,6 @@ debugLog('Parameters:', {userId, fileHash, botUrl});
 if (!userId || !fileHash || !botUrl) {
     showStatus('❌ Invalid parameters', 'error');
     updateProgress('❌ Missing parameters');
-    watchBtn.disabled = true;
-    return; // ⛔ STOP TOTAL
     debugLog('ERROR: Missing required parameters');
 } else {
     debugLog('✓ Parameters OK');
@@ -419,7 +417,6 @@ async function preloadAd() {
         return false;
     }
 }
-startAdFlow();
 
 // ===== COUNTDOWN TIMER =====
 function startCountdown(seconds) {
@@ -574,42 +571,6 @@ async function sendFileToUser() {
         showLoader(false);
     }
 }
-
-    function startAdFlow() {
-    updateProgress('📺 Playing ad...');
-    showStatus('⏳ Watching ad...', 'info');
-
-    setTimeout(() => {
-       async function notifyBotAdComplete() {
-    try {
-        updateProgress('📤 Sending to bot...');
-
-        const url = `${botUrl}/ad-complete?userId=${userId}&fileHash=${fileHash}`;
-
-        const response = await fetch(url, {
-            method: 'GET',
-            headers: { 'Accept': 'application/json' }
-        });
-
-        if (!response.ok) {
-            showStatus('❌ Bot error', 'error');
-            return;
-        }
-
-        const data = await response.json();
-
-        if (data.success) {
-            showStatus('✅ File sent to Telegram', 'success');
-            setTimeout(() => Telegram.WebApp.close(), 1500);
-        } else {
-            showStatus('❌ Failed', 'error');
-        }
-
-    } catch (e) {
-        showStatus('❌ Network error', 'error');
-    }
-}
-
 
 // ===== INITIALIZE =====
 (async function init() {
