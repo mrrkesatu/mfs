@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Watch Ad to Unlock</title>
+    <title>Watch Ad</title>
     
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     
@@ -183,62 +183,13 @@
             min-height: 0;
             display: none;
         }
-
-        .debug-info {
-            background: rgba(0, 0, 0, 0.5);
-            padding: 10px;
-            border-radius: 8px;
-            font-size: 10px;
-            margin-top: 15px;
-            text-align: left;
-            display: none;
-            max-height: 200px;
-            overflow-y: auto;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-        }
-
-        .debug-info.show {
-            display: block;
-        }
-
-        .debug-info div {
-            margin: 2px 0;
-            opacity: 0.8;
-        }
-
-        /* Compact mode for mobile */
-        @media (max-height: 700px) {
-            .icon {
-                font-size: 50px;
-                margin-bottom: 15px;
-            }
-            
-            h1 {
-                font-size: 20px;
-                margin-bottom: 8px;
-            }
-            
-            .subtitle {
-                margin-bottom: 15px;
-            }
-            
-            .info-box {
-                padding: 12px;
-                margin-bottom: 15px;
-            }
-            
-            .instruction {
-                margin-top: 10px;
-                padding: 10px;
-            }
-        }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="icon">📺</div>
-        <h1>Watch Ad to Unlock</h1>
-        <p class="subtitle">Get your file for free</p>
+        <h1 id="title">Watch Ad</h1>
+        <p class="subtitle" id="subtitle">Loading...</p>
         
         <div class="info-box">
             <div class="info-item">
@@ -251,7 +202,7 @@
             </div>
             <div class="info-item">
                 <span>🎁</span>
-                <span>File sent automatically</span>
+                <span id="reward">Reward loading...</span>
             </div>
         </div>
         
@@ -274,24 +225,20 @@
             1. Click "Watch Ad Now"<br>
             2. <strong>Watch the full ad</strong><br>
             3. Wait for countdown<br>
-            4. File will be sent automatically
+            4. Reward sent automatically
         </div>
-
-        <div id="debugInfo" class="debug-info"></div>
     </div>
 
 <script>
 // ===== CONFIG =====
-const DEBUG_MODE = false; // Set true for debugging
-const AD_MIN_DURATION = 15; // Minimal durasi ad dalam detik
-const COUNTDOWN_DURATION = 3; // Countdown sebelum kirim file
+const DEBUG_MODE = false;
+const AD_MIN_DURATION = 15;
+const COUNTDOWN_DURATION = 3;
 
 // ===== INIT TELEGRAM =====
 const tg = window.Telegram.WebApp;
 tg.ready();
 tg.expand();
-
-// Set dark theme
 tg.setHeaderColor('#1a1a1a');
 tg.setBackgroundColor('#1a1a1a');
 
@@ -299,7 +246,36 @@ tg.setBackgroundColor('#1a1a1a');
 const urlParams = new URLSearchParams(window.location.search);
 const userId = urlParams.get('userId');
 const fileHash = urlParams.get('fileHash');
+const type = urlParams.get('type'); // "token" or "upload"
+const tempHash = urlParams.get('tempHash');
 const botUrl = urlParams.get('botUrl');
+
+// ===== DETERMINE MODE =====
+let mode = 'file'; // "file", "token", "upload"
+let endpoint = '';
+let rewardText = '';
+
+if (fileHash) {
+    mode = 'file';
+    endpoint = `${botUrl}/ad-complete?userId=${userId}&fileHash=${fileHash}`;
+    rewardText = 'File sent to chat';
+    document.getElementById('title').textContent = 'Watch Ad to Unlock';
+    document.getElementById('subtitle').textContent = 'Get your file for free';
+} else if (type === 'token') {
+    mode = 'token';
+    endpoint = `${botUrl}/token-complete?userId=${userId}&type=token${tempHash ? '&tempHash='+tempHash : ''}`;
+    rewardText = '+2 tokens earned';
+    document.getElementById('title').textContent = 'Watch Ad for Tokens';
+    document.getElementById('subtitle').textContent = 'Get +2 protection tokens';
+} else if (type === 'upload') {
+    mode = 'upload';
+    endpoint = `${botUrl}/token-complete?userId=${userId}&type=upload`;
+    rewardText = '+2 uploads earned';
+    document.getElementById('title').textContent = 'Watch Ad for Uploads';
+    document.getElementById('subtitle').textContent = 'Get +2 upload slots';
+}
+
+document.getElementById('reward').textContent = rewardText;
 
 // ===== DOM ELEMENTS =====
 const watchBtn = document.getElementById('watchBtn');
@@ -308,36 +284,21 @@ const loader = document.getElementById('loader');
 const progressText = document.getElementById('progressText');
 const timerDiv = document.getElementById('timer');
 const adContainer = document.getElementById('adContainer');
-const debugInfo = document.getElementById('debugInfo');
 
 // ===== STATE =====
 let adWatchedFully = false;
 let timerInterval = null;
 let adStartTime = null;
 
-// ===== DEBUG LOGGING =====
-function debugLog(msg, data) {
-    const timestamp = new Date().toLocaleTimeString();
-    console.log(`[${timestamp}] ${msg}`, data || '');
-    
-    if (DEBUG_MODE) {
-        debugInfo.classList.add('show');
-        debugInfo.innerHTML += `<div>[${timestamp}] ${msg}</div>`;
-        debugInfo.scrollTop = debugInfo.scrollHeight;
-    }
-}
-
 // ===== UI HELPERS =====
 function showStatus(msg, type) {
     statusDiv.textContent = msg;
     statusDiv.className = 'status show';
     if (type) statusDiv.classList.add(type);
-    debugLog('Status: ' + msg);
 }
 
 function updateProgress(text) {
     progressText.textContent = text;
-    debugLog('Progress: ' + text);
 }
 
 function showLoader(show) {
@@ -345,26 +306,14 @@ function showLoader(show) {
 }
 
 // ===== VALIDATE PARAMETERS =====
-debugLog('Parameters:', {userId, fileHash, botUrl});
-
-if (!userId || !fileHash || !botUrl) {
+if (!userId || !botUrl || (!fileHash && !type)) {
     showStatus('❌ Invalid parameters', 'error');
     updateProgress('❌ Missing parameters');
-    debugLog('ERROR: Missing required parameters');
-} else {
-    debugLog('✓ Parameters OK');
 }
-
-// ===== DETECT PLATFORM =====
-const platform = tg.platform || 'unknown';
-const isMobile = /android|iphone|ipad/i.test(platform);
-debugLog('Platform:', platform);
-debugLog('Is Mobile:', isMobile);
 
 // ===== LOAD MONETAG SDK =====
 function loadMonetag() {
     return new Promise((resolve, reject) => {
-        debugLog('Loading Monetag SDK...');
         updateProgress('⏳ Loading ad system...');
         
         const script = document.createElement('script');
@@ -373,54 +322,27 @@ function loadMonetag() {
         script.setAttribute('data-sdk', 'show_10348819');
         
         script.onload = () => {
-            debugLog('✓ SDK script loaded');
-            // Wait for SDK function to be available
             let attempts = 0;
             const checkSDK = setInterval(() => {
                 attempts++;
                 if (typeof window.show_10348819 === 'function') {
                     clearInterval(checkSDK);
-                    debugLog(`✓ SDK ready (${attempts * 0.5}s)`);
                     resolve();
                 }
-                if (attempts >= 40) { // 20 seconds timeout
+                if (attempts >= 40) {
                     clearInterval(checkSDK);
-                    debugLog('✗ SDK timeout');
                     reject(new Error('SDK timeout'));
                 }
             }, 500);
         };
         
-        script.onerror = () => {
-            debugLog('✗ SDK script load failed');
-            reject(new Error('Failed to load SDK'));
-        };
-        
+        script.onerror = () => reject(new Error('Failed to load SDK'));
         document.head.appendChild(script);
     });
 }
 
-// ===== PRELOAD AD (optional) =====
-async function preloadAd() {
-    if (!window.show_10348819) {
-        debugLog('⚠️ Preload skipped - SDK not ready');
-        return false;
-    }
-    
-    try {
-        debugLog('Preloading ad...');
-        await window.show_10348819({ type: 'preload', ymid: userId });
-        debugLog('✓ Preload success');
-        return true;
-    } catch (error) {
-        debugLog('⚠️ Preload failed:', error.message);
-        return false;
-    }
-}
-
 // ===== COUNTDOWN TIMER =====
 function startCountdown(seconds) {
-    debugLog(`Starting countdown: ${seconds}s`);
     timerDiv.style.display = 'block';
     let remaining = seconds;
     
@@ -433,22 +355,18 @@ function startCountdown(seconds) {
         if (remaining <= 0) {
             clearInterval(timerInterval);
             timerDiv.style.display = 'none';
-            debugLog('Countdown finished');
-            sendFileToUser();
+            sendReward();
         }
     }, 1000);
 }
 
 // ===== WATCH AD =====
 async function watchAd() {
-    debugLog('=== USER CLICKED WATCH AD ===');
-    
     watchBtn.disabled = true;
     watchBtn.textContent = '📺 Loading ad...';
     updateProgress('📺 Opening ad...');
     
     if (typeof window.show_10348819 !== 'function') {
-        debugLog('✗ SDK not available');
         showStatus('❌ Ad system error', 'error');
         watchBtn.disabled = false;
         watchBtn.textContent = '🔄 Retry';
@@ -457,20 +375,15 @@ async function watchAd() {
     
     try {
         adStartTime = Date.now();
-        debugLog('Calling ad SDK...');
         
-        // Show ad
         window.show_10348819({ ymid: userId })
             .then(() => {
                 const duration = (Date.now() - adStartTime) / 1000;
-                debugLog(`✓ Ad promise resolved. Duration: ${duration.toFixed(1)}s`);
                 
                 if (duration >= AD_MIN_DURATION) {
-                    debugLog('✓ Duration sufficient');
                     adWatchedFully = true;
                     onAdCompleted();
                 } else {
-                    debugLog(`✗ Duration too short: ${duration.toFixed(1)}s`);
                     showStatus('⚠️ Watch the full ad', 'warning');
                     watchBtn.disabled = false;
                     watchBtn.textContent = '📺 Watch Ad Again';
@@ -478,15 +391,11 @@ async function watchAd() {
             })
             .catch((error) => {
                 const duration = (Date.now() - adStartTime) / 1000;
-                debugLog(`Ad promise rejected. Duration: ${duration.toFixed(1)}s`, error);
                 
-                // Accept if watched long enough
                 if (duration >= AD_MIN_DURATION) {
-                    debugLog('✓ Duration sufficient despite rejection');
                     adWatchedFully = true;
                     onAdCompleted();
                 } else {
-                    debugLog('✗ Ad not completed');
                     showStatus('⚠️ Please watch the full ad', 'warning');
                     updateProgress('⚠️ Ad closed early');
                     watchBtn.disabled = false;
@@ -494,14 +403,12 @@ async function watchAd() {
                 }
             });
         
-        // Update UI
         await new Promise(r => setTimeout(r, 1000));
         watchBtn.textContent = '👀 Watching...';
         showStatus('👀 Watch the full ad', 'warning');
         updateProgress(`⏳ Watch for ${AD_MIN_DURATION}+ seconds...`);
         
     } catch (error) {
-        debugLog('✗ Watch error:', error.message);
         showStatus('❌ Ad error', 'error');
         updateProgress('❌ Error: ' + error.message);
         watchBtn.disabled = false;
@@ -511,8 +418,6 @@ async function watchAd() {
 
 // ===== AD COMPLETED =====
 function onAdCompleted() {
-    debugLog('=== AD COMPLETED ===');
-    
     watchBtn.textContent = '✅ Ad Completed!';
     showStatus('✅ Ad completed!', 'success');
     updateProgress(`⏳ Countdown ${COUNTDOWN_DURATION}s...`);
@@ -520,41 +425,31 @@ function onAdCompleted() {
     startCountdown(COUNTDOWN_DURATION);
 }
 
-// ===== SEND FILE =====
-async function sendFileToUser() {
-    debugLog('=== SENDING FILE ===');
-    
-    showStatus('📤 Sending file...', 'success');
-    updateProgress('📤 Sending to Telegram...');
+// ===== SEND REWARD =====
+async function sendReward() {
+    showStatus('📤 Sending reward...', 'success');
+    updateProgress('📤 Processing...');
     showLoader(true);
     watchBtn.textContent = '📤 Sending...';
     
     try {
-        const url = `${botUrl}/ad-complete?userId=${userId}&fileHash=${fileHash}`;
-        debugLog('API URL:', url);
-        
-        const response = await fetch(url, { 
+        const response = await fetch(endpoint, { 
             method: 'GET',
             headers: { 'Accept': 'application/json' }
         });
-        
-        debugLog('Response status:', response.status);
         
         if (!response.ok) {
             throw new Error(`Server error: ${response.status}`);
         }
         
         const data = await response.json();
-        debugLog('Response data:', data);
         
         if (data.success) {
-            debugLog('✓✓✓ FILE SENT SUCCESSFULLY!');
-            showStatus('✅ File sent to your chat!', 'success');
+            showStatus('✅ ' + rewardText + '!', 'success');
             updateProgress('✅ Check Telegram!');
             watchBtn.textContent = '✅ Done!';
             
             setTimeout(() => {
-                debugLog('Closing Mini App...');
                 tg.close();
             }, 2000);
         } else {
@@ -562,7 +457,6 @@ async function sendFileToUser() {
         }
         
     } catch (error) {
-        debugLog('✗ Send error:', error.message);
         showStatus(`❌ ${error.message}`, 'error');
         updateProgress('❌ Failed. Try again or contact support.');
         watchBtn.disabled = false;
@@ -575,34 +469,21 @@ async function sendFileToUser() {
 // ===== INITIALIZE =====
 (async function init() {
     try {
-        debugLog('=== INITIALIZATION START ===');
-        
-        // Load SDK
         await loadMonetag();
         await new Promise(r => setTimeout(r, 1500));
         
-        // Try preload (non-blocking)
-        preloadAd().catch(() => {});
-        
-        await new Promise(r => setTimeout(r, 500));
-        
-        // Ready!
         watchBtn.disabled = false;
         watchBtn.textContent = '📺 Watch Ad Now';
         showStatus('✅ Ready!', 'success');
         updateProgress('✅ Click button to start');
-        debugLog('=== INITIALIZATION COMPLETE ===');
         
-        // Add click handler
         watchBtn.addEventListener('click', watchAd);
         
     } catch (error) {
-        debugLog('✗ Init error:', error.message);
         watchBtn.textContent = '❌ Error';
         showStatus('❌ Failed to load', 'error');
         updateProgress('❌ ' + error.message);
         
-        // Still allow retry
         watchBtn.disabled = false;
         watchBtn.textContent = '🔄 Retry Load';
         watchBtn.addEventListener('click', () => {
@@ -611,24 +492,15 @@ async function sendFileToUser() {
     }
 })();
 
-// ===== ERROR HANDLERS =====
-window.addEventListener('error', (e) => {
-    debugLog('Global error:', e.error?.message || e.message);
-});
-
 window.addEventListener('beforeunload', () => {
     if (timerInterval) {
         clearInterval(timerInterval);
     }
 });
 
-// ===== TELEGRAM BACK BUTTON =====
 tg.BackButton.onClick(() => {
-    debugLog('Back button clicked');
     tg.close();
 });
-
-debugLog('✓ Script loaded successfully');
 </script>
 
 </body>
