@@ -157,14 +157,6 @@
             min-height: 18px;
         }
 
-        .timer {
-            font-size: 48px;
-            font-weight: bold;
-            margin: 20px 0;
-            color: #FF6B6B;
-            text-shadow: 0 0 20px rgba(255, 107, 107, 0.5);
-        }
-
         .instruction {
             background: rgba(255, 255, 255, 0.05);
             padding: 12px;
@@ -178,11 +170,6 @@
         .instruction strong {
             color: #FF8E53;
         }
-
-        #adContainer {
-            min-height: 0;
-            display: none;
-        }
     </style>
 </head>
 <body>
@@ -193,12 +180,12 @@
         
         <div class="info-box">
             <div class="info-item">
-                <span>⏱️</span>
-                <span>Watch for 15-20 seconds</span>
+                <span>📺</span>
+                <span>Watch ad or click skip</span>
             </div>
             <div class="info-item">
                 <span>✅</span>
-                <span>Wait for timer</span>
+                <span>Auto close after ad</span>
             </div>
             <div class="info-item">
                 <span>🎁</span>
@@ -210,10 +197,6 @@
             ⏳ Loading...
         </button>
         
-        <div class="timer" id="timer" style="display: none;"></div>
-        
-        <div id="adContainer"></div>
-        
         <div class="loader" id="loader"></div>
         
         <div id="status" class="status"></div>
@@ -223,18 +206,13 @@
         <div class="instruction">
             <strong>📌 Instructions:</strong><br>
             1. Click "Watch Ad Now"<br>
-            2. <strong>Watch the full ad</strong><br>
-            3. Wait for countdown<br>
-            4. Reward sent automatically
+            2. Watch ad or click <strong>"Continue"</strong><br>
+            3. Reward sent automatically<br>
+            4. App will auto-close
         </div>
     </div>
 
 <script>
-// ===== CONFIG =====
-const DEBUG_MODE = false;
-const AD_MIN_DURATION = 1;
-const COUNTDOWN_DURATION = 3;
-
 // ===== INIT TELEGRAM =====
 const tg = window.Telegram.WebApp;
 tg.ready();
@@ -251,24 +229,20 @@ const tempHash = urlParams.get('tempHash');
 const botUrl = urlParams.get('botUrl');
 
 // ===== DETERMINE MODE =====
-let mode = 'file'; // "file", "token", "upload"
 let endpoint = '';
 let rewardText = '';
 
 if (fileHash) {
-    mode = 'file';
     endpoint = `${botUrl}/ad-complete?userId=${userId}&fileHash=${fileHash}`;
     rewardText = 'File sent to chat';
     document.getElementById('title').textContent = 'Watch Ad to Unlock';
     document.getElementById('subtitle').textContent = 'Get your file for free';
 } else if (type === 'token') {
-    mode = 'token';
     endpoint = `${botUrl}/token-complete?userId=${userId}&type=token${tempHash ? '&tempHash='+tempHash : ''}`;
     rewardText = '+2 tokens earned';
     document.getElementById('title').textContent = 'Watch Ad for Tokens';
     document.getElementById('subtitle').textContent = 'Get +2 protection tokens';
 } else if (type === 'upload') {
-    mode = 'upload';
     endpoint = `${botUrl}/token-complete?userId=${userId}&type=upload`;
     rewardText = '+2 uploads earned';
     document.getElementById('title').textContent = 'Watch Ad for Uploads';
@@ -282,13 +256,6 @@ const watchBtn = document.getElementById('watchBtn');
 const statusDiv = document.getElementById('status');
 const loader = document.getElementById('loader');
 const progressText = document.getElementById('progressText');
-const timerDiv = document.getElementById('timer');
-const adContainer = document.getElementById('adContainer');
-
-// ===== STATE =====
-let adWatchedFully = false;
-let timerInterval = null;
-let adStartTime = null;
 
 // ===== UI HELPERS =====
 function showStatus(msg, type) {
@@ -309,6 +276,7 @@ function showLoader(show) {
 if (!userId || !botUrl || (!fileHash && !type)) {
     showStatus('❌ Invalid parameters', 'error');
     updateProgress('❌ Missing parameters');
+    watchBtn.textContent = '❌ Error';
 }
 
 // ===== LOAD MONETAG SDK =====
@@ -341,25 +309,6 @@ function loadMonetag() {
     });
 }
 
-// ===== COUNTDOWN TIMER =====
-function startCountdown(seconds) {
-    timerDiv.style.display = 'block';
-    let remaining = seconds;
-    
-    timerDiv.textContent = remaining;
-    
-    timerInterval = setInterval(() => {
-        remaining--;
-        timerDiv.textContent = remaining;
-        
-        if (remaining <= 0) {
-            clearInterval(timerInterval);
-            timerDiv.style.display = 'none';
-            sendReward();
-        }
-    }, 1000);
-}
-
 // ===== WATCH AD =====
 async function watchAd() {
     watchBtn.disabled = true;
@@ -374,41 +323,28 @@ async function watchAd() {
     }
     
     try {
-        adStartTime = Date.now();
-        
+        // Trigger Monetag ad
         window.show_10348819({ ymid: userId })
             .then(() => {
-                const duration = (Date.now() - adStartTime) / 1000;
-                
-                if (duration >= AD_MIN_DURATION) {
-                    adWatchedFully = true;
-                    onAdCompleted();
-                } else {
-                    showStatus('⚠️ Watch the full ad', 'warning');
-                    watchBtn.disabled = false;
-                    watchBtn.textContent = '📺 Watch Ad Again';
-                }
+                // Ad closed (user watched or clicked skip/continue)
+                console.log('Ad completed or skipped');
+                onAdCompleted();
             })
             .catch((error) => {
-                const duration = (Date.now() - adStartTime) / 1000;
-                
-                if (duration >= AD_MIN_DURATION) {
-                    adWatchedFully = true;
-                    onAdCompleted();
-                } else {
-                    showStatus('⚠️ Please watch the full ad', 'warning');
-                    updateProgress('⚠️ Ad closed early');
-                    watchBtn.disabled = false;
-                    watchBtn.textContent = '📺 Watch Ad Again';
-                }
+                // Ad error OR user clicked continue/skip button
+                console.log('Ad catch triggered:', error);
+                // Treat as completed regardless
+                onAdCompleted();
             });
         
-        await new Promise(r => setTimeout(r, 1000));
+        // Update UI
+        await new Promise(r => setTimeout(r, 500));
         watchBtn.textContent = '👀 Watching...';
-        showStatus('👀 Watch the full ad', 'warning');
-        updateProgress(`⏳ Watch for ${AD_MIN_DURATION}+ seconds...`);
+        showStatus('👀 Watch or click Continue', 'warning');
+        updateProgress('⏳ Ad will close automatically...');
         
     } catch (error) {
+        console.error('Watch ad error:', error);
         showStatus('❌ Ad error', 'error');
         updateProgress('❌ Error: ' + error.message);
         watchBtn.disabled = false;
@@ -416,49 +352,56 @@ async function watchAd() {
     }
 }
 
-// ===== AD COMPLETED =====
+// ===== AD COMPLETED (NO MIN DURATION) =====
 function onAdCompleted() {
+    console.log('onAdCompleted called');
     watchBtn.textContent = '✅ Ad Completed!';
     showStatus('✅ Ad completed!', 'success');
-    updateProgress(`⏳ Countdown ${COUNTDOWN_DURATION}s...`);
+    updateProgress('📤 Sending reward...');
     
-    startCountdown(COUNTDOWN_DURATION);
+    // Send reward immediately (no countdown)
+    sendReward();
 }
 
 // ===== SEND REWARD =====
 async function sendReward() {
-    showStatus('📤 Sending reward...', 'success');
-    updateProgress('📤 Processing...');
     showLoader(true);
     watchBtn.textContent = '📤 Sending...';
     
     try {
+        console.log('Sending reward to:', endpoint);
+        
         const response = await fetch(endpoint, { 
             method: 'GET',
             headers: { 'Accept': 'application/json' }
         });
+        
+        console.log('Response status:', response.status);
         
         if (!response.ok) {
             throw new Error(`Server error: ${response.status}`);
         }
         
         const data = await response.json();
+        console.log('Response data:', data);
         
         if (data.success) {
             showStatus('✅ ' + rewardText + '!', 'success');
             updateProgress('✅ Check Telegram!');
             watchBtn.textContent = '✅ Done!';
             
+            // Auto-close after 1.5 seconds
             setTimeout(() => {
                 tg.close();
-            }, 2000);
+            }, 1500);
         } else {
             throw new Error(data.error || 'Unknown error');
         }
         
     } catch (error) {
+        console.error('Send reward error:', error);
         showStatus(`❌ ${error.message}`, 'error');
-        updateProgress('❌ Failed. Try again or contact support.');
+        updateProgress('❌ Failed. Try again.');
         watchBtn.disabled = false;
         watchBtn.textContent = '🔄 Retry';
     } finally {
@@ -470,7 +413,7 @@ async function sendReward() {
 (async function init() {
     try {
         await loadMonetag();
-        await new Promise(r => setTimeout(r, 1500));
+        await new Promise(r => setTimeout(r, 1000));
         
         watchBtn.disabled = false;
         watchBtn.textContent = '📺 Watch Ad Now';
@@ -480,6 +423,7 @@ async function sendReward() {
         watchBtn.addEventListener('click', watchAd);
         
     } catch (error) {
+        console.error('Init error:', error);
         watchBtn.textContent = '❌ Error';
         showStatus('❌ Failed to load', 'error');
         updateProgress('❌ ' + error.message);
@@ -492,12 +436,7 @@ async function sendReward() {
     }
 })();
 
-window.addEventListener('beforeunload', () => {
-    if (timerInterval) {
-        clearInterval(timerInterval);
-    }
-});
-
+// ===== TELEGRAM BACK BUTTON =====
 tg.BackButton.onClick(() => {
     tg.close();
 });
