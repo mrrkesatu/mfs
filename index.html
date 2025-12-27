@@ -248,12 +248,6 @@ if (fileHash) {
     document.getElementById('title').textContent = 'Watch Ad for Uploads';
     document.getElementById('subtitle').textContent = 'Get +2 upload slots';
 }
-} else if (type === 'checkin') {
-    endpoint = `${botUrl}/ad-complete?userId=${userId}`;
-    rewardText = '+1 point earned';
-    document.getElementById('title').textContent = 'Daily Check-in';
-    document.getElementById('subtitle').textContent = 'Watch ad to earn +1 point';
-}
 
 document.getElementById('reward').textContent = rewardText;
 
@@ -292,8 +286,8 @@ function loadMonetag() {
         
         const script = document.createElement('script');
         script.src = '//libtl.com/sdk.js';
-        script.setAttribute('data-zone', '10376632');
-        script.setAttribute('data-sdk', 'show_10376632');
+        script.setAttribute('data-zone', '10348819');
+        script.setAttribute('data-sdk', 'show_10348819');
         
         script.onload = () => {
             let attempts = 0;
