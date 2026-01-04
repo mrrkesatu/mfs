@@ -329,7 +329,7 @@ function loadMonetag() {
             let attempts = 0;
             const checkSDK = setInterval(() => {
                 attempts++;
-                if (typeof window.show_10348819 === 'function') {
+                if (typeof window.show_10416650 === 'function') {
                     clearInterval(checkSDK);
                     resolve();
                 }
@@ -351,7 +351,7 @@ async function watchAd() {
     watchBtn.textContent = '📺 Loading ad...';
     updateProgress('📺 Opening ad...');
     
-    if (typeof window.show_10348819 !== 'function') {
+    if (typeof window.show_10416650 !== 'function') {
         showStatus('❌ Ad system error', 'error');
         watchBtn.disabled = false;
         watchBtn.textContent = '🔄 Retry';
@@ -360,7 +360,7 @@ async function watchAd() {
     
     try {
         // Trigger Monetag ad
-        window.show_10348819({ ymid: userId })
+        window.show_10416650({ ymid: userId })
             .then(() => {
                 // Ad closed (user watched or clicked skip/continue)
                 console.log('Ad completed or skipped');
