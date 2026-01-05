@@ -187,6 +187,22 @@
             justify-content: center;
             gap: 8px;
         }
+
+        .debug-info {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 10px;
+            border-radius: 8px;
+            margin-top: 15px;
+            font-size: 10px;
+            text-align: left;
+            max-height: 150px;
+            overflow-y: auto;
+            display: none;
+        }
+
+        .debug-info.show {
+            display: block;
+        }
     </style>
 </head>
 <body>
@@ -229,11 +245,6 @@
         
         <p class="progress-text" id="progressText"></p>
         
-        <div class="adblock-notice">
-            <span>🛡️</span>
-            <span>Please turn off adblock</span>
-        </div>
-
         <div class="instruction">
             <strong>📌 Instructions:</strong><br>
             1. Click "Watch Ad Now"<br>
@@ -241,9 +252,19 @@
             3. Reward sent automatically<br>
             4. App will auto-close
         </div>
+
+        <div id="debugInfo" class="debug-info"></div>
     </div>
 
 <script>
+// ===== DEBUG HELPER =====
+function debugLog(msg) {
+    console.log(msg);
+    const debugDiv = document.getElementById('debugInfo');
+    debugDiv.classList.add('show');
+    debugDiv.innerHTML += msg + '<br>';
+}
+
 // ===== INIT TELEGRAM =====
 const tg = window.Telegram.WebApp;
 tg.ready();
@@ -255,33 +276,52 @@ tg.setBackgroundColor('#1a1a1a');
 const urlParams = new URLSearchParams(window.location.search);
 const userId = urlParams.get('userId');
 const fileHash = urlParams.get('fileHash');
-const type = urlParams.get('type'); // "token" or "upload"
+const type = urlParams.get('type');
 const tempHash = urlParams.get('tempHash');
 const botUrl = urlParams.get('botUrl');
-const botToken = urlParams.get('botToken'); // ADD THIS
+const botToken = urlParams.get('botToken');
+
+debugLog('=== PARAMETERS ===');
+debugLog('userId: ' + userId);
+debugLog('fileHash: ' + (fileHash ? fileHash.substring(0, 10) + '...' : 'null'));
+debugLog('type: ' + type);
+debugLog('botUrl: ' + botUrl);
+debugLog('botToken: ' + (botToken ? 'present' : 'MISSING'));
+
+// ===== VALIDATE CRITICAL PARAMS =====
+if (!userId || !botUrl || !botToken) {
+    debugLog('❌ CRITICAL: Missing required parameters');
+    showStatus('❌ Configuration error', 'error');
+    updateLoadingStatus('❌ Missing parameters');
+    watchBtn.textContent = '❌ Error';
+    throw new Error('Missing required parameters');
+}
 
 // ===== DETERMINE MODE =====
 let endpoint = '';
 let rewardText = '';
 
 if (fileHash) {
-    // ADD botToken to endpoint
-    endpoint = `${botUrl}/ad-complete?userId=${userId}&fileHash=${fileHash}&botToken=${botToken}`;
+    endpoint = `${botUrl}/ad-complete?userId=${encodeURIComponent(userId)}&fileHash=${encodeURIComponent(fileHash)}&botToken=${encodeURIComponent(botToken)}`;
     rewardText = 'File sent to chat';
     document.getElementById('title').textContent = 'Watch Ad to Unlock';
     document.getElementById('subtitle').textContent = 'Get your file for free';
 } else if (type === 'token') {
-    // ADD botToken to endpoint
-    endpoint = `${botUrl}/token-complete?userId=${userId}&type=token&botToken=${botToken}${tempHash ? '&tempHash='+tempHash : ''}`;
+    endpoint = `${botUrl}/token-complete?userId=${encodeURIComponent(userId)}&type=token&botToken=${encodeURIComponent(botToken)}`;
+    if (tempHash) {
+        endpoint += `&tempHash=${encodeURIComponent(tempHash)}`;
+    }
     rewardText = '+2 tokens earned';
     document.getElementById('title').textContent = 'Watch Ad for Tokens';
     document.getElementById('subtitle').textContent = 'Get +2 protection tokens';
 } else if (type === 'upload') {
-    endpoint = `${botUrl}/token-complete?userId=${userId}&type=upload&botToken=${botToken}`;
+    endpoint = `${botUrl}/token-complete?userId=${encodeURIComponent(userId)}&type=upload&botToken=${encodeURIComponent(botToken)}`;
     rewardText = '+2 uploads earned';
     document.getElementById('title').textContent = 'Watch Ad for Uploads';
     document.getElementById('subtitle').textContent = 'Get +2 upload slots';
 }
+
+debugLog('Endpoint: ' + endpoint);
 
 document.getElementById('reward').textContent = rewardText;
 
@@ -311,13 +351,6 @@ function showLoader(show) {
     loader.style.display = show ? 'block' : 'none';
 }
 
-// ===== VALIDATE PARAMETERS =====
-if (!userId || !botUrl || (!fileHash && !type)) {
-    showStatus('❌ Error: Missing required data', 'error');
-    updateLoadingStatus('❌ Configuration error');
-    watchBtn.textContent = '❌ Error';
-}
-
 // ===== LOAD MONETAG SDK =====
 function loadMonetag() {
     return new Promise((resolve, reject) => {
@@ -329,21 +362,27 @@ function loadMonetag() {
         script.setAttribute('data-sdk', 'show_10416650');
         
         script.onload = () => {
+            debugLog('Monetag SDK loaded');
             let attempts = 0;
             const checkSDK = setInterval(() => {
                 attempts++;
                 if (typeof window.show_10416650 === 'function') {
                     clearInterval(checkSDK);
+                    debugLog('✅ SDK ready');
                     resolve();
                 }
                 if (attempts >= 40) {
                     clearInterval(checkSDK);
+                    debugLog('❌ SDK timeout');
                     reject(new Error('SDK timeout'));
                 }
             }, 500);
         };
         
-        script.onerror = () => reject(new Error('Failed to load SDK'));
+        script.onerror = () => {
+            debugLog('❌ SDK load failed');
+            reject(new Error('Failed to load SDK'));
+        };
         document.head.appendChild(script);
     });
 }
@@ -362,28 +401,25 @@ async function watchAd() {
     }
     
     try {
-        // Trigger Monetag ad
+        debugLog('Showing ad...');
+        
         window.show_10416650({ ymid: userId })
             .then(() => {
-                // Ad closed (user watched or clicked skip/continue)
-                console.log('Ad completed or skipped');
+                debugLog('Ad promise resolved');
                 onAdCompleted();
             })
             .catch((error) => {
-                // Ad error OR user clicked continue/skip button
-                console.log('Ad catch triggered:', error);
-                // Treat as completed regardless
+                debugLog('Ad promise rejected: ' + error);
                 onAdCompleted();
             });
         
-        // Update UI
         await new Promise(r => setTimeout(r, 500));
         watchBtn.textContent = '👀 Watching...';
         showStatus('👀 Watch or click Continue', 'warning');
         updateProgress('⏳ Ad will close automatically...');
         
     } catch (error) {
-        console.error('Watch ad error:', error);
+        debugLog('❌ Watch ad error: ' + error);
         showStatus('❌ Ad error', 'error');
         updateProgress('❌ Error: ' + error.message);
         watchBtn.disabled = false;
@@ -391,14 +427,12 @@ async function watchAd() {
     }
 }
 
-// ===== AD COMPLETED (NO MIN DURATION) =====
+// ===== AD COMPLETED =====
 function onAdCompleted() {
-    console.log('onAdCompleted called');
+    debugLog('onAdCompleted called');
     watchBtn.textContent = '✅ Ad Completed!';
     showStatus('✅ Ad completed!', 'success');
     updateProgress('📤 Sending reward...');
-    
-    // Send reward immediately (no countdown)
     sendReward();
 }
 
@@ -408,28 +442,29 @@ async function sendReward() {
     watchBtn.textContent = '📤 Sending...';
     
     try {
-        console.log('Sending reward to:', endpoint);
+        debugLog('Sending to: ' + endpoint);
         
         const response = await fetch(endpoint, { 
             method: 'GET',
             headers: { 'Accept': 'application/json' }
         });
         
-        console.log('Response status:', response.status);
+        debugLog('Response status: ' + response.status);
         
         if (!response.ok) {
+            const errorText = await response.text();
+            debugLog('Response error: ' + errorText);
             throw new Error(`Server error: ${response.status}`);
         }
         
         const data = await response.json();
-        console.log('Response data:', data);
+        debugLog('Response: ' + JSON.stringify(data));
         
         if (data.success) {
             showStatus('✅ ' + rewardText + '!', 'success');
             updateProgress('✅ Check Telegram!');
             watchBtn.textContent = '✅ Done!';
             
-            // Auto-close after 1.5 seconds
             setTimeout(() => {
                 tg.close();
             }, 1500);
@@ -438,7 +473,7 @@ async function sendReward() {
         }
         
     } catch (error) {
-        console.error('Send reward error:', error);
+        debugLog('❌ Send reward error: ' + error);
         showStatus(`❌ ${error.message}`, 'error');
         updateProgress('❌ Failed. Try again.');
         watchBtn.disabled = false;
@@ -461,7 +496,7 @@ async function sendReward() {
         watchBtn.addEventListener('click', watchAd);
         
     } catch (error) {
-        console.error('Init error:', error);
+        debugLog('❌ Init error: ' + error);
         watchBtn.textContent = '❌ Error';
         updateLoadingStatus('❌ Failed to load');
         updateProgress('❌ ' + error.message);
