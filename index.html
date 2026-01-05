@@ -258,23 +258,26 @@ const fileHash = urlParams.get('fileHash');
 const type = urlParams.get('type'); // "token" or "upload"
 const tempHash = urlParams.get('tempHash');
 const botUrl = urlParams.get('botUrl');
+const botToken = urlParams.get('botToken'); // ADD THIS
 
 // ===== DETERMINE MODE =====
 let endpoint = '';
 let rewardText = '';
 
 if (fileHash) {
-    endpoint = `${botUrl}/ad-complete?userId=${userId}&fileHash=${fileHash}`;
+    // ADD botToken to endpoint
+    endpoint = `${botUrl}/ad-complete?userId=${userId}&fileHash=${fileHash}&botToken=${botToken}`;
     rewardText = 'File sent to chat';
     document.getElementById('title').textContent = 'Watch Ad to Unlock';
     document.getElementById('subtitle').textContent = 'Get your file for free';
 } else if (type === 'token') {
-    endpoint = `${botUrl}/token-complete?userId=${userId}&type=token${tempHash ? '&tempHash='+tempHash : ''}`;
+    // ADD botToken to endpoint
+    endpoint = `${botUrl}/token-complete?userId=${userId}&type=token&botToken=${botToken}${tempHash ? '&tempHash='+tempHash : ''}`;
     rewardText = '+2 tokens earned';
     document.getElementById('title').textContent = 'Watch Ad for Tokens';
     document.getElementById('subtitle').textContent = 'Get +2 protection tokens';
 } else if (type === 'upload') {
-    endpoint = `${botUrl}/token-complete?userId=${userId}&type=upload`;
+    endpoint = `${botUrl}/token-complete?userId=${userId}&type=upload&botToken=${botToken}`;
     rewardText = '+2 uploads earned';
     document.getElementById('title').textContent = 'Watch Ad for Uploads';
     document.getElementById('subtitle').textContent = 'Get +2 upload slots';
