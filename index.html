@@ -272,21 +272,53 @@ tg.expand();
 tg.setHeaderColor('#1a1a1a');
 tg.setBackgroundColor('#1a1a1a');
 
-// ===== GET PARAMETERS =====
+// ===== BASE64 DECODE HELPER =====
+function decodeParam(encoded) {
+    try {
+        return atob(encoded);
+    } catch (e) {
+        debugLog('Decode error: ' + e);
+        return null;
+    }
+}
+
+// ===== GET PARAMETERS (ENCODED) =====
 const urlParams = new URLSearchParams(window.location.search);
-const userId = urlParams.get('userId');
-const fileHash = urlParams.get('fileHash');
-const type = urlParams.get('type');
-const tempHash = urlParams.get('tempHash');
-const botUrl = urlParams.get('botUrl');
-const botToken = urlParams.get('botToken');
+const encodedData = urlParams.get('d'); // Single encoded parameter
 
 debugLog('=== PARAMETERS ===');
-debugLog('userId: ' + userId);
-debugLog('fileHash: ' + (fileHash ? fileHash.substring(0, 10) + '...' : 'null'));
-debugLog('type: ' + type);
-debugLog('botUrl: ' + botUrl);
-debugLog('botToken: ' + (botToken ? 'present' : 'MISSING'));
+debugLog('Encoded data received: ' + (encodedData ? 'Yes' : 'No'));
+
+// ===== DECODE AND PARSE =====
+let userId, fileHash, type, tempHash, botUrl, botToken;
+
+if (encodedData) {
+    try {
+        const decodedData = decodeParam(encodedData);
+        const params = JSON.parse(decodedData);
+        
+        userId = params.userId;
+        fileHash = params.fileHash;
+        type = params.type;
+        tempHash = params.tempHash;
+        botUrl = params.botUrl;
+        botToken = params.botToken;
+        
+        debugLog('Parameters decoded successfully');
+        debugLog('userId: ' + userId);
+        debugLog('type: ' + type);
+        debugLog('botUrl: ' + botUrl);
+    } catch (e) {
+        debugLog('❌ Failed to decode parameters: ' + e);
+    }
+}
+
+// Clear URL parameters from address bar
+if (window.history && window.history.replaceState) {
+    const cleanUrl = window.location.pathname;
+    window.history.replaceState({}, document.title, cleanUrl);
+    debugLog('URL cleaned');
+}
 
 // ===== VALIDATE CRITICAL PARAMS =====
 if (!userId || !botUrl || !botToken) {
@@ -321,7 +353,7 @@ if (fileHash) {
     document.getElementById('subtitle').textContent = 'Get +2 upload slots';
 }
 
-debugLog('Endpoint: ' + endpoint);
+debugLog('Endpoint configured');
 
 document.getElementById('reward').textContent = rewardText;
 
@@ -442,7 +474,7 @@ async function sendReward() {
     watchBtn.textContent = '📤 Sending...';
     
     try {
-        debugLog('Sending to: ' + endpoint);
+        debugLog('Sending reward...');
         
         const response = await fetch(endpoint, { 
             method: 'GET',
