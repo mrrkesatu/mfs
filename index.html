@@ -187,22 +187,6 @@
             justify-content: center;
             gap: 8px;
         }
-
-        .debug-info {
-            background: rgba(0, 0, 0, 0.3);
-            padding: 10px;
-            border-radius: 8px;
-            margin-top: 15px;
-            font-size: 10px;
-            text-align: left;
-            max-height: 150px;
-            overflow-y: auto;
-            display: none;
-        }
-
-        .debug-info.show {
-            display: block;
-        }
     </style>
 </head>
 <body>
@@ -252,17 +236,13 @@
             3. Reward sent automatically<br>
             4. App will auto-close
         </div>
-
-        <div id="debugInfo" class="debug-info"></div>
     </div>
 
 <script>
-// ===== DEBUG HELPER =====
+// ===== SECURE DEBUG (only to console, no visible output) =====
 function debugLog(msg) {
     console.log(msg);
-    const debugDiv = document.getElementById('debugInfo');
-    debugDiv.classList.add('show');
-    debugDiv.innerHTML += msg + '<br>';
+    // Debug info TIDAK ditampilkan di UI untuk keamanan
 }
 
 // ===== INIT TELEGRAM =====
@@ -272,53 +252,22 @@ tg.expand();
 tg.setHeaderColor('#1a1a1a');
 tg.setBackgroundColor('#1a1a1a');
 
-// ===== BASE64 DECODE HELPER =====
-function decodeParam(encoded) {
-    try {
-        return atob(encoded);
-    } catch (e) {
-        debugLog('Decode error: ' + e);
-        return null;
-    }
-}
-
-// ===== GET PARAMETERS (ENCODED) =====
+// ===== GET PARAMETERS =====
 const urlParams = new URLSearchParams(window.location.search);
-const encodedData = urlParams.get('d'); // Single encoded parameter
+const userId = urlParams.get('userId');
+const fileHash = urlParams.get('fileHash');
+const type = urlParams.get('type');
+const tempHash = urlParams.get('tempHash');
+const botUrl = urlParams.get('botUrl');
+const botToken = urlParams.get('botToken');
 
+// Log ke console saja (tidak tampil di layar)
 debugLog('=== PARAMETERS ===');
-debugLog('Encoded data received: ' + (encodedData ? 'Yes' : 'No'));
-
-// ===== DECODE AND PARSE =====
-let userId, fileHash, type, tempHash, botUrl, botToken;
-
-if (encodedData) {
-    try {
-        const decodedData = decodeParam(encodedData);
-        const params = JSON.parse(decodedData);
-        
-        userId = params.userId;
-        fileHash = params.fileHash;
-        type = params.type;
-        tempHash = params.tempHash;
-        botUrl = params.botUrl;
-        botToken = params.botToken;
-        
-        debugLog('Parameters decoded successfully');
-        debugLog('userId: ' + userId);
-        debugLog('type: ' + type);
-        debugLog('botUrl: ' + botUrl);
-    } catch (e) {
-        debugLog('❌ Failed to decode parameters: ' + e);
-    }
-}
-
-// Clear URL parameters from address bar
-if (window.history && window.history.replaceState) {
-    const cleanUrl = window.location.pathname;
-    window.history.replaceState({}, document.title, cleanUrl);
-    debugLog('URL cleaned');
-}
+debugLog('userId: ' + userId);
+debugLog('fileHash: ' + (fileHash ? fileHash.substring(0, 10) + '...' : 'null'));
+debugLog('type: ' + type);
+debugLog('botUrl: ' + botUrl);
+debugLog('botToken: ' + (botToken ? 'present' : 'MISSING'));
 
 // ===== VALIDATE CRITICAL PARAMS =====
 if (!userId || !botUrl || !botToken) {
@@ -353,7 +302,7 @@ if (fileHash) {
     document.getElementById('subtitle').textContent = 'Get +2 upload slots';
 }
 
-debugLog('Endpoint configured');
+debugLog('Endpoint: ' + endpoint);
 
 document.getElementById('reward').textContent = rewardText;
 
@@ -474,7 +423,7 @@ async function sendReward() {
     watchBtn.textContent = '📤 Sending...';
     
     try {
-        debugLog('Sending reward...');
+        debugLog('Sending to: ' + endpoint);
         
         const response = await fetch(endpoint, { 
             method: 'GET',
