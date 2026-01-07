@@ -252,6 +252,32 @@ tg.expand();
 tg.setHeaderColor('#1a1a1a');
 tg.setBackgroundColor('#1a1a1a');
 
+// ===== DOM ELEMENTS (HARUS DI ATAS SEBELUM DIPAKAI) =====
+const watchBtn = document.getElementById('watchBtn');
+const statusDiv = document.getElementById('status');
+const loader = document.getElementById('loader');
+const progressText = document.getElementById('progressText');
+const loadingStatus = document.getElementById('loadingStatus');
+
+// ===== UI HELPERS =====
+function showStatus(msg, type) {
+    statusDiv.textContent = msg;
+    statusDiv.className = 'status show';
+    if (type) statusDiv.classList.add(type);
+}
+
+function updateProgress(text) {
+    progressText.textContent = text;
+}
+
+function updateLoadingStatus(text) {
+    loadingStatus.innerHTML = `<span>⏳</span><span>${text}</span>`;
+}
+
+function showLoader(show) {
+    loader.style.display = show ? 'block' : 'none';
+}
+
 // ===== GET PARAMETERS =====
 const urlParams = new URLSearchParams(window.location.search);
 const userId = urlParams.get('userId');
@@ -305,32 +331,6 @@ if (fileHash) {
 debugLog('Endpoint: ' + endpoint);
 
 document.getElementById('reward').textContent = rewardText;
-
-// ===== DOM ELEMENTS =====
-const watchBtn = document.getElementById('watchBtn');
-const statusDiv = document.getElementById('status');
-const loader = document.getElementById('loader');
-const progressText = document.getElementById('progressText');
-const loadingStatus = document.getElementById('loadingStatus');
-
-// ===== UI HELPERS =====
-function showStatus(msg, type) {
-    statusDiv.textContent = msg;
-    statusDiv.className = 'status show';
-    if (type) statusDiv.classList.add(type);
-}
-
-function updateProgress(text) {
-    progressText.textContent = text;
-}
-
-function updateLoadingStatus(text) {
-    loadingStatus.innerHTML = `<span>⏳</span><span>${text}</span>`;
-}
-
-function showLoader(show) {
-    loader.style.display = show ? 'block' : 'none';
-}
 
 // ===== LOAD MONETAG SDK =====
 function loadMonetag() {
