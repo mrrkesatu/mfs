@@ -197,7 +197,7 @@
         
         <div class="adblock-notice">
             <span>🛡️</span>
-            <span>Please turn off adblock</span>
+            <span>Please disable adblock</span>
         </div>
 
         <div class="info-box">
@@ -239,12 +239,6 @@
     </div>
 
 <script>
-// ===== SECURE DEBUG (only to console, no visible output) =====
-function debugLog(msg) {
-    console.log(msg);
-    // Debug info TIDAK ditampilkan di UI untuk keamanan
-}
-
 // ===== INIT TELEGRAM =====
 const tg = window.Telegram.WebApp;
 tg.ready();
@@ -252,7 +246,7 @@ tg.expand();
 tg.setHeaderColor('#1a1a1a');
 tg.setBackgroundColor('#1a1a1a');
 
-// ===== DOM ELEMENTS (HARUS DI ATAS SEBELUM DIPAKAI) =====
+// ===== DOM ELEMENTS =====
 const watchBtn = document.getElementById('watchBtn');
 const statusDiv = document.getElementById('status');
 const loader = document.getElementById('loader');
@@ -281,23 +275,14 @@ function showLoader(show) {
 // ===== GET PARAMETERS =====
 const urlParams = new URLSearchParams(window.location.search);
 const userId = urlParams.get('userId');
-const fileHash = urlParams.get('fileHash');
+const sessionId = urlParams.get('sessionId'); // BARU: session ID instead of token
 const type = urlParams.get('type');
 const tempHash = urlParams.get('tempHash');
 const botUrl = urlParams.get('botUrl');
-const botToken = urlParams.get('botToken');
-
-// Log ke console saja (tidak tampil di layar)
-debugLog('=== PARAMETERS ===');
-debugLog('userId: ' + userId);
-debugLog('fileHash: ' + (fileHash ? fileHash.substring(0, 10) + '...' : 'null'));
-debugLog('type: ' + type);
-debugLog('botUrl: ' + botUrl);
-debugLog('botToken: ' + (botToken ? 'present' : 'MISSING'));
+const fileHash = urlParams.get('fileHash');
 
 // ===== VALIDATE CRITICAL PARAMS =====
-if (!userId || !botUrl || !botToken) {
-    debugLog('❌ CRITICAL: Missing required parameters');
+if (!userId || !botUrl || !sessionId) {
     showStatus('❌ Configuration error', 'error');
     updateLoadingStatus('❌ Missing parameters');
     watchBtn.textContent = '❌ Error';
@@ -309,12 +294,14 @@ let endpoint = '';
 let rewardText = '';
 
 if (fileHash) {
-    endpoint = `${botUrl}/ad-complete?userId=${encodeURIComponent(userId)}&fileHash=${encodeURIComponent(fileHash)}&botToken=${encodeURIComponent(botToken)}`;
+    // File unlock mode
+    endpoint = `${botUrl}/ad-complete?userId=${encodeURIComponent(userId)}&fileHash=${encodeURIComponent(fileHash)}&sessionId=${encodeURIComponent(sessionId)}`;
     rewardText = 'File sent to chat';
     document.getElementById('title').textContent = 'Watch Ad to Unlock';
     document.getElementById('subtitle').textContent = 'Get your file for free';
 } else if (type === 'token') {
-    endpoint = `${botUrl}/token-complete?userId=${encodeURIComponent(userId)}&type=token&botToken=${encodeURIComponent(botToken)}`;
+    // Token reward mode
+    endpoint = `${botUrl}/token-complete?userId=${encodeURIComponent(userId)}&type=token&sessionId=${encodeURIComponent(sessionId)}`;
     if (tempHash) {
         endpoint += `&tempHash=${encodeURIComponent(tempHash)}`;
     }
@@ -322,13 +309,12 @@ if (fileHash) {
     document.getElementById('title').textContent = 'Watch Ad for Tokens';
     document.getElementById('subtitle').textContent = 'Get +2 protection tokens';
 } else if (type === 'upload') {
-    endpoint = `${botUrl}/token-complete?userId=${encodeURIComponent(userId)}&type=upload&botToken=${encodeURIComponent(botToken)}`;
+    // Upload reward mode
+    endpoint = `${botUrl}/token-complete?userId=${encodeURIComponent(userId)}&type=upload&sessionId=${encodeURIComponent(sessionId)}`;
     rewardText = '+2 uploads earned';
     document.getElementById('title').textContent = 'Watch Ad for Uploads';
     document.getElementById('subtitle').textContent = 'Get +2 upload slots';
 }
-
-debugLog('Endpoint: ' + endpoint);
 
 document.getElementById('reward').textContent = rewardText;
 
@@ -338,38 +324,40 @@ function loadMonetag() {
         updateLoadingStatus('Loading ad system...');
         
         const script = document.createElement('script');
-        script.src = '//libtl.com/sdk.js';
+        script.src = 'https://libtl.com/sdk.js';
         script.setAttribute('data-zone', '10416650');
         script.setAttribute('data-sdk', 'show_10416650');
         
         script.onload = () => {
-            debugLog('Monetag SDK loaded');
             let attempts = 0;
             const checkSDK = setInterval(() => {
                 attempts++;
                 if (typeof window.show_10416650 === 'function') {
                     clearInterval(checkSDK);
-                    debugLog('✅ SDK ready');
                     resolve();
                 }
                 if (attempts >= 40) {
                     clearInterval(checkSDK);
-                    debugLog('❌ SDK timeout');
                     reject(new Error('SDK timeout'));
                 }
             }, 500);
         };
         
         script.onerror = () => {
-            debugLog('❌ SDK load failed');
             reject(new Error('Failed to load SDK'));
         };
         document.head.appendChild(script);
     });
 }
 
+// ===== AD COMPLETION FLAG =====
+let adCompleted = false;
+let rewardSent = false;
+
 // ===== WATCH AD =====
 async function watchAd() {
+    if (adCompleted) return;
+    
     watchBtn.disabled = true;
     watchBtn.textContent = '📺 Loading ad...';
     updateProgress('📺 Opening ad...');
@@ -382,16 +370,16 @@ async function watchAd() {
     }
     
     try {
-        debugLog('Showing ad...');
-        
         window.show_10416650({ ymid: userId })
             .then(() => {
-                debugLog('Ad promise resolved');
                 onAdCompleted();
             })
             .catch((error) => {
-                debugLog('Ad promise rejected: ' + error);
-                onAdCompleted();
+                setTimeout(() => {
+                    if (!adCompleted) {
+                        onAdCompleted();
+                    }
+                }, 2000);
             });
         
         await new Promise(r => setTimeout(r, 500));
@@ -400,7 +388,6 @@ async function watchAd() {
         updateProgress('⏳ Ad will close automatically...');
         
     } catch (error) {
-        debugLog('❌ Watch ad error: ' + error);
         showStatus('❌ Ad error', 'error');
         updateProgress('❌ Error: ' + error.message);
         watchBtn.disabled = false;
@@ -410,36 +397,45 @@ async function watchAd() {
 
 // ===== AD COMPLETED =====
 function onAdCompleted() {
-    debugLog('onAdCompleted called');
+    if (adCompleted) return;
+    
+    adCompleted = true;
     watchBtn.textContent = '✅ Ad Completed!';
     showStatus('✅ Ad completed!', 'success');
     updateProgress('📤 Sending reward...');
+    
     sendReward();
 }
 
 // ===== SEND REWARD =====
 async function sendReward() {
+    if (rewardSent) return;
+    
+    rewardSent = true;
     showLoader(true);
     watchBtn.textContent = '📤 Sending...';
     
     try {
-        debugLog('Sending to: ' + endpoint);
-        
         const response = await fetch(endpoint, { 
             method: 'GET',
-            headers: { 'Accept': 'application/json' }
+            headers: { 
+                'Accept': 'application/json',
+                'Content-Type': 'application/json'
+            },
+            signal: AbortSignal.timeout(15000)
         });
-        
-        debugLog('Response status: ' + response.status);
         
         if (!response.ok) {
             const errorText = await response.text();
-            debugLog('Response error: ' + errorText);
-            throw new Error(`Server error: ${response.status}`);
+            throw new Error(`Server error (${response.status})`);
+        }
+        
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+            throw new Error('Server returned non-JSON response');
         }
         
         const data = await response.json();
-        debugLog('Response: ' + JSON.stringify(data));
         
         if (data.success) {
             showStatus('✅ ' + rewardText + '!', 'success');
@@ -448,17 +444,25 @@ async function sendReward() {
             
             setTimeout(() => {
                 tg.close();
-            }, 1500);
+            }, 2000);
         } else {
-            throw new Error(data.error || 'Unknown error');
+            throw new Error(data.error || data.message || 'Unknown error');
         }
         
     } catch (error) {
-        debugLog('❌ Send reward error: ' + error);
-        showStatus(`❌ ${error.message}`, 'error');
+        let errorMsg = error.message;
+        if (error.name === 'AbortError') {
+            errorMsg = 'Request timeout';
+        }
+        
+        showStatus(`❌ ${errorMsg}`, 'error');
         updateProgress('❌ Failed. Try again.');
+        
+        rewardSent = false;
+        adCompleted = false;
         watchBtn.disabled = false;
-        watchBtn.textContent = '🔄 Retry';
+        watchBtn.textContent = '🔄 Retry Sending';
+        
     } finally {
         showLoader(false);
     }
@@ -472,18 +476,19 @@ async function sendReward() {
         
         watchBtn.disabled = false;
         watchBtn.textContent = '📺 Watch Ad Now';
-        updateLoadingStatus('Click watch to start');
+        updateLoadingStatus('✅ Ready');
+        showStatus('✅ Ready to watch', 'success');
         
         watchBtn.addEventListener('click', watchAd);
         
     } catch (error) {
-        debugLog('❌ Init error: ' + error);
-        watchBtn.textContent = '❌ Error';
-        updateLoadingStatus('❌ Failed to load');
-        updateProgress('❌ ' + error.message);
+        watchBtn.textContent = '❌ Load Failed';
+        updateLoadingStatus('❌ Failed');
+        showStatus('❌ ' + error.message, 'error');
+        updateProgress('Try disabling adblock');
         
         watchBtn.disabled = false;
-        watchBtn.textContent = '🔄 Retry Load';
+        watchBtn.textContent = '🔄 Reload Page';
         watchBtn.addEventListener('click', () => {
             location.reload();
         });
@@ -491,9 +496,12 @@ async function sendReward() {
 })();
 
 // ===== TELEGRAM BACK BUTTON =====
-tg.BackButton.onClick(() => {
-    tg.close();
-});
+if (tg && tg.BackButton) {
+    tg.BackButton.show();
+    tg.BackButton.onClick(() => {
+        tg.close();
+    });
+}
 </script>
 
 </body>
