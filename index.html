@@ -325,14 +325,14 @@ function loadMonetag() {
         
         const script = document.createElement('script');
         script.src = 'https://libtl.com/sdk.js';
-        script.setAttribute('data-zone', '10416650');
-        script.setAttribute('data-sdk', 'show_10416650');
+        script.setAttribute('data-zone', '10476008');
+        script.setAttribute('data-sdk', 'show_10476008');
         
         script.onload = () => {
             let attempts = 0;
             const checkSDK = setInterval(() => {
                 attempts++;
-                if (typeof window.show_10416650 === 'function') {
+                if (typeof window.show_10476008 === 'function') {
                     clearInterval(checkSDK);
                     resolve();
                 }
@@ -362,7 +362,7 @@ async function watchAd() {
     watchBtn.textContent = '📺 Loading ad...';
     updateProgress('📺 Opening ad...');
     
-    if (typeof window.show_10416650 !== 'function') {
+    if (typeof window.show_10476008 !== 'function') {
         showStatus('❌ Ad system error', 'error');
         watchBtn.disabled = false;
         watchBtn.textContent = '🔄 Retry';
@@ -370,7 +370,7 @@ async function watchAd() {
     }
     
     try {
-        window.show_10416650({ ymid: userId })
+        window.show_10476008({ ymid: userId })
             .then(() => {
                 onAdCompleted();
             })
