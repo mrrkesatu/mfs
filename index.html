@@ -187,6 +187,17 @@
             justify-content: center;
             gap: 8px;
         }
+
+        /* ===== HIDE HISTATS ===== */
+        #histats_counter {
+            display: none !important;
+            width: 0 !important;
+            height: 0 !important;
+            overflow: hidden !important;
+            position: absolute !important;
+            visibility: hidden !important;
+            pointer-events: none !important;
+        }
     </style>
 </head>
 <body>
@@ -275,7 +286,7 @@ function showLoader(show) {
 // ===== GET PARAMETERS =====
 const urlParams = new URLSearchParams(window.location.search);
 const userId = urlParams.get('userId');
-const sessionId = urlParams.get('sessionId'); // BARU: session ID instead of token
+const sessionId = urlParams.get('sessionId');
 const type = urlParams.get('type');
 const tempHash = urlParams.get('tempHash');
 const botUrl = urlParams.get('botUrl');
@@ -294,13 +305,11 @@ let endpoint = '';
 let rewardText = '';
 
 if (fileHash) {
-    // File unlock mode
     endpoint = `${botUrl}/ad-complete?userId=${encodeURIComponent(userId)}&fileHash=${encodeURIComponent(fileHash)}&sessionId=${encodeURIComponent(sessionId)}`;
     rewardText = 'File sent to chat';
     document.getElementById('title').textContent = 'Watch Ad to Unlock';
     document.getElementById('subtitle').textContent = 'Get your file for free';
 } else if (type === 'token') {
-    // Token reward mode
     endpoint = `${botUrl}/token-complete?userId=${encodeURIComponent(userId)}&type=token&sessionId=${encodeURIComponent(sessionId)}`;
     if (tempHash) {
         endpoint += `&tempHash=${encodeURIComponent(tempHash)}`;
@@ -309,7 +318,6 @@ if (fileHash) {
     document.getElementById('title').textContent = 'Watch Ad for Tokens';
     document.getElementById('subtitle').textContent = 'Get +2 protection tokens';
 } else if (type === 'upload') {
-    // Upload reward mode
     endpoint = `${botUrl}/token-complete?userId=${encodeURIComponent(userId)}&type=upload&sessionId=${encodeURIComponent(sessionId)}`;
     rewardText = '+2 uploads earned';
     document.getElementById('title').textContent = 'Watch Ad for Uploads';
@@ -503,9 +511,11 @@ if (tg && tg.BackButton) {
     });
 }
 </script>
-   <!-- Histats.com  (div with counter) --><div id="histats_counter"></div>
-<!-- Histats.com  START  (aync)-->
-<script type="text/javascript">var _Hasync= _Hasync|| [];
+
+<!-- Histats.com START -->
+<div id="histats_counter" style="display:none;width:0;height:0;overflow:hidden;position:absolute;visibility:hidden;pointer-events:none;"></div>
+<script type="text/javascript">
+var _Hasync= _Hasync|| [];
 _Hasync.push(['Histats.start', '1,5018819,4,7,200,30,00011111']);
 _Hasync.push(['Histats.fasi', '1']);
 _Hasync.push(['Histats.track_hits', '']);
@@ -513,8 +523,10 @@ _Hasync.push(['Histats.track_hits', '']);
 var hs = document.createElement('script'); hs.type = 'text/javascript'; hs.async = true;
 hs.src = ('//s10.histats.com/js15_as.js');
 (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(hs);
-})();</script>
-<noscript><a href="/" target="_blank"><img  src="//sstatic1.histats.com/0.gif?5018819&101" alt="" border="0"></a></noscript>
-<!-- Histats.com  END  -->
+})();
+</script>
+<noscript><a href="/" target="_blank"><img src="//sstatic1.histats.com/0.gif?5018819&101" alt="" border="0" style="display:none;width:0;height:0;"></a></noscript>
+<!-- Histats.com END -->
+
 </body>
 </html>
